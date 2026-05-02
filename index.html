@@ -1,0 +1,401 @@
+import { useState, useRef, useEffect } from "react";
+
+const CATEGORIES = ["All","Protein","Vegetables","Carbs","Soup","Snacks","Desserts","Drinks","Others"];
+const GROCERY_GROUPS = ["Carbs","Protein","Vegetables","Others"];
+const FONT = "'Aptos','Segoe UI',system-ui,sans-serif";
+const INGREDIENT_MAP = {
+  Carbs:["rice","noodle","pasta","bread","flour","potato","oat","quinoa","tortilla","spaghetti","penne","ramen","udon","soba","bun","wrap","cracker","couscous","barley","corn","maize","taco","cereal","oatmeal"],
+  Protein:["chicken","beef","pork","fish","salmon","tuna","shrimp","prawn","egg","tofu","tempeh","lamb","turkey","duck","crab","lobster","anchovy","sardine","lentil","chickpea","bean","soy","mince","steak","bacon","ham","sausage"],
+  Vegetables:["onion","garlic","ginger","tomato","carrot","spinach","broccoli","capsicum","pepper","cucumber","lettuce","cabbage","mushroom","zucchini","eggplant","celery","leek","spring onion","scallion","bok choy","kale","asparagus","pea","chilli","chili","lemongrass","basil","cilantro","coriander","parsley","mint","thyme","rosemary","pumpkin","sweet potato","radish","beetroot","avocado"],
+};
+
+function classifyIngredient(name) {
+  const lower = name.toLowerCase();
+  for (const [group, keywords] of Object.entries(INGREDIENT_MAP)) {
+    if (keywords.some(k => lower.includes(k))) return group;
+  }
+  return "Others";
+}
+
+function getYTThumb(url) {
+  const m = (url||"").match(/(?:shorts\/|v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return m ? "https://img.youtube.com/vi/"+m[1]+"/hqdefault.jpg" : null;
+}
+
+function getPlatform(url) {
+  if (!url) return "Link";
+  if (url.includes("youtube")||url.includes("youtu.be")) return "YouTube";
+  if (url.includes("facebook")||url.includes("fb.com")) return "Facebook";
+  if (url.includes("instagram")) return "Instagram";
+  if (url.includes("xiaohongshu")||url.includes("rednote")) return "RedNote";
+  return "Link";
+}
+
+const PC = {YouTube:"#e24b4a",Facebook:"#378add",Instagram:"#d4537e",RedNote:"#e24b4a",Link:"#888780"};
+const FS = {width:"100%",boxSizing:"border-box",fontFamily:FONT,fontSize:14,padding:"9px 12px",border:"1px solid #d0d0d0",borderRadius:8,background:"#fff",color:"#1a1a1a",outline:"none"};
+const LS = {fontSize:12,fontWeight:500,color:"#555",display:"block",marginBottom:5,fontFamily:FONT,letterSpacing:"0.02em",textTransform:"uppercase"};
+
+const PRESETS = [
+  {id:1001,name:"Garlic Parmesan Chicken",category:"Protein",link:"https://www.facebook.com/reel/950483740597868",platform:"Facebook",thumbnail:null,calories:520,protein:42,servings:2,remarks:"",ingredients:[{name:"chicken breast",amount:"500g",calories:550,protein:103},{name:"parmesan cheese",amount:"50g",calories:196,protein:18},{name:"garlic",amount:"4 cloves",calories:18,protein:0.8},{name:"butter",amount:"30g",calories:216,protein:0.3},{name:"olive oil",amount:"15ml",calories:120,protein:0},{name:"breadcrumbs",amount:"30g",calories:114,protein:3},{name:"Italian seasoning",amount:"2 tsp",calories:6,protein:0.2},{name:"salt & pepper",amount:"to taste",calories:0,protein:0}]},
+  {id:1002,name:"Steam Winter Melon Chicken",category:"Soup",link:"https://www.facebook.com/reel/1186147809889832",platform:"Facebook",thumbnail:null,calories:280,protein:32,servings:2,remarks:"",ingredients:[{name:"chicken thigh",amount:"400g",calories:560,protein:52},{name:"winter melon",amount:"300g",calories:45,protein:1.2},{name:"ginger",amount:"10g",calories:8,protein:0.2},{name:"garlic",amount:"3 cloves",calories:13,protein:0.6},{name:"soy sauce",amount:"15ml",calories:9,protein:1.4},{name:"sesame oil",amount:"5ml",calories:40,protein:0},{name:"oyster sauce",amount:"10ml",calories:10,protein:0.2},{name:"cornstarch",amount:"10g",calories:38,protein:0},{name:"spring onion",amount:"2 stalks",calories:6,protein:0.3}]},
+  {id:1003,name:"Steam Tofu, Tomato with Sliced Fish",category:"Protein",link:"https://www.facebook.com/reel/1165860918725273",platform:"Facebook",thumbnail:null,calories:240,protein:28,servings:2,remarks:"",ingredients:[{name:"silken tofu",amount:"300g",calories:90,protein:9},{name:"tomato",amount:"2 medium",calories:43,protein:2.1},{name:"sliced fish fillet",amount:"200g",calories:180,protein:36},{name:"ginger",amount:"10g",calories:8,protein:0.2},{name:"garlic",amount:"2 cloves",calories:9,protein:0.4},{name:"soy sauce",amount:"15ml",calories:9,protein:1.4},{name:"sesame oil",amount:"5ml",calories:40,protein:0},{name:"spring onion",amount:"2 stalks",calories:6,protein:0.3}]},
+  {id:1004,name:"Unknown Facebook Recipe",category:"Others",link:"https://www.facebook.com/reel/1230989409132376",platform:"Facebook",thumbnail:null,calories:0,protein:0,servings:1,remarks:"",ingredients:[]},
+  {id:1005,name:"Creamy Mushroom Chicken",category:"Protein",link:"https://www.fooddolls.com/creamy-mushroom-chicken-recipe/",platform:"Link",thumbnail:null,calories:520,protein:38,servings:4,remarks:"",ingredients:[{name:"chicken breast",amount:"700g",calories:770,protein:145},{name:"all-purpose flour",amount:"40g",calories:146,protein:4},{name:"olive oil",amount:"60ml",calories:477,protein:0},{name:"garlic",amount:"3 cloves",calories:13,protein:0.6},{name:"sun-dried tomatoes",amount:"60g",calories:140,protein:3},{name:"kalamata olives",amount:"50g",calories:72,protein:0.5},{name:"cremini mushrooms",amount:"200g",calories:40,protein:3.6},{name:"heavy cream",amount:"120ml",calories:408,protein:2.5},{name:"chicken stock",amount:"120ml",calories:15,protein:1.5},{name:"parmesan cheese",amount:"100g",calories:392,protein:36},{name:"fresh spinach",amount:"60g",calories:14,protein:1.7}]},
+  {id:1006,name:"Potato, Egg, Cucumber Crabmeat Salad",category:"Others",link:"https://www.facebook.com/reel/2596526697399646",platform:"Facebook",thumbnail:null,calories:320,protein:18,servings:2,remarks:"",ingredients:[{name:"potato",amount:"300g",calories:231,protein:6},{name:"egg",amount:"2 large",calories:143,protein:12.6},{name:"cucumber",amount:"150g",calories:24,protein:1},{name:"crabmeat",amount:"100g",calories:82,protein:17},{name:"mayonnaise",amount:"40g",calories:276,protein:0.5},{name:"lemon juice",amount:"10ml",calories:3,protein:0.1}]},
+  {id:1007,name:"Sardines with Egg",category:"Protein",link:"https://www.facebook.com/share/r/1HUXmSH3qP/",platform:"Facebook",thumbnail:null,calories:350,protein:36,servings:2,remarks:"",ingredients:[{name:"canned sardines",amount:"200g",calories:372,protein:40},{name:"egg",amount:"2 large",calories:143,protein:12.6},{name:"garlic",amount:"3 cloves",calories:13,protein:0.6},{name:"onion",amount:"100g",calories:40,protein:1.1},{name:"tomato",amount:"120g",calories:22,protein:1.1},{name:"olive oil",amount:"15ml",calories:120,protein:0},{name:"spring onion",amount:"2 stalks",calories:6,protein:0.3}]},
+  {id:1008,name:"Prawn and Tomato Pasta",category:"Carbs",link:"https://www.facebook.com/reel/1491762315507340",platform:"Facebook",thumbnail:null,calories:520,protein:34,servings:2,remarks:"",ingredients:[{name:"pasta",amount:"180g",calories:670,protein:24},{name:"prawn",amount:"250g",calories:265,protein:50},{name:"tomato",amount:"360g",calories:65,protein:3.2},{name:"garlic",amount:"4 cloves",calories:18,protein:0.8},{name:"olive oil",amount:"30ml",calories:239,protein:0},{name:"chili flakes",amount:"1 tsp",calories:5,protein:0.2},{name:"parmesan cheese",amount:"30g",calories:118,protein:10.8}]},
+  {id:1009,name:"Tuscan Shrimp Pasta",category:"Carbs",link:"https://www.facebook.com/reel/654775467684679",platform:"Facebook",thumbnail:null,calories:620,protein:38,servings:2,remarks:"",ingredients:[{name:"pasta",amount:"180g",calories:670,protein:24},{name:"shrimp",amount:"300g",calories:318,protein:60},{name:"heavy cream",amount:"120ml",calories:408,protein:2.5},{name:"sun-dried tomatoes",amount:"60g",calories:140,protein:3},{name:"fresh spinach",amount:"60g",calories:14,protein:1.7},{name:"garlic",amount:"4 cloves",calories:18,protein:0.8},{name:"parmesan cheese",amount:"50g",calories:196,protein:18},{name:"olive oil",amount:"20ml",calories:159,protein:0}]},
+];
+
+function ImagePicker({ imagePreview, setImagePreview, setImageBase64, imageUrl, setImageUrl, link }) {
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef();
+  function loadFile(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = ev => { setImagePreview(ev.target.result); setImageBase64(ev.target.result); setImageUrl(""); };
+    reader.readAsDataURL(file);
+  }
+  function handleDrop(e) { e.preventDefault(); setDragging(false); loadFile(e.dataTransfer.files[0]); }
+  function handleUrlChange(e) { setImageUrl(e.target.value); setImagePreview(e.target.value); setImageBase64(null); }
+  function useYT() { const t = getYTThumb(link); if (t) { setImagePreview(t); setImageBase64(null); setImageUrl(""); } }
+  return (
+    <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #d0d0d0"}}>
+      {imagePreview ? (
+        <div style={{position:"relative"}}>
+          <img src={imagePreview} alt="preview" onError={()=>setImagePreview(null)} style={{width:"100%",height:180,objectFit:"cover",display:"block"}} />
+          <button onClick={()=>{setImagePreview(null);setImageBase64(null);setImageUrl("");}} style={{position:"absolute",top:8,right:8,fontSize:12,padding:"4px 10px",background:"rgba(0,0,0,0.65)",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontFamily:FONT}}>Remove</button>
+        </div>
+      ) : (
+        <div style={{padding:14,display:"flex",flexDirection:"column",gap:10,background:"#fafafa"}}>
+          <div onDragOver={e=>{e.preventDefault();setDragging(true);}} onDragLeave={()=>setDragging(false)} onDrop={handleDrop} onClick={()=>fileRef.current.click()} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,cursor:"pointer",padding:"18px 14px",border:`2px dashed ${dragging?"#378add":"#c0c0c0"}`,borderRadius:8,background:dragging?"#e6f1fb":"#fff"}}>
+            <span style={{fontSize:28}}>🖼</span>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:13,fontWeight:500,color:"#1a1a1a",fontFamily:FONT}}>Drag & drop or click to upload</div>
+              <div style={{fontSize:11,color:"#888",fontFamily:FONT}}>JPG, PNG, WEBP</div>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" onChange={e=>loadFile(e.target.files[0])} style={{display:"none"}} />
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{flex:1,height:1,background:"#e0e0e0"}} />
+            <span style={{fontSize:11,color:"#aaa",fontFamily:FONT}}>or paste image URL</span>
+            <div style={{flex:1,height:1,background:"#e0e0e0"}} />
+          </div>
+          <input value={imageUrl} onChange={handleUrlChange} placeholder="https://example.com/image.jpg" style={{...FS,fontSize:13}} />
+          {link && getYTThumb(link) && (
+            <div>
+              <div style={{fontSize:11,color:"#888",marginBottom:6,fontFamily:FONT}}>Auto-fetched YouTube thumbnail:</div>
+              <div style={{position:"relative"}}>
+                <img src={getYTThumb(link)} alt="yt" style={{width:"100%",height:90,objectFit:"cover",borderRadius:7,display:"block",cursor:"pointer"}} onClick={useYT} />
+                <div onClick={useYT} style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.38)",borderRadius:7,cursor:"pointer",fontSize:13,color:"#fff",fontWeight:600,fontFamily:FONT}}>Use this</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecipeModal({ onClose, onSave, initial }) {
+  const editing = !!initial;
+  const [step, setStep] = useState("form");
+  const [link, setLink] = useState(initial?.link||"");
+  const [name, setName] = useState(initial?.name||"");
+  const [category, setCategory] = useState(initial?.category||"Protein");
+  const [ingredientText, setIngredientText] = useState(initial ? (initial.ingredients||[]).map(i=>i.amount?i.name+" · "+i.amount:i.name).join("\n") : "");
+  const [remarks, setRemarks] = useState(initial?.remarks||"");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [imagePreview, setImagePreview] = useState(initial?.thumbnail||null);
+  const [imageBase64, setImageBase64] = useState(null);
+  const [imageUrl, setImageUrl] = useState("");
+
+  function getFinal() { return imageBase64||imagePreview||getYTThumb(link); }
+
+  async function handleFetchFromLink() {
+    if (!link.trim()) { setError("Please enter a video or recipe link first."); return; }
+    setError(""); setLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514", max_tokens: 1000,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages: [{ role: "user", content: `Look up this recipe link and extract the recipe details: ${link}\n\nIf it's a Facebook/Instagram video and you can't access it directly, search for the recipe name based on the URL or any clues available.\n\nRespond ONLY with a JSON object (no markdown, no backticks):\n{"name":"Recipe Name","ingredients":["ingredient 1 · amount","ingredient 2 · amount"],"servings":2}\n\nList each ingredient with its amount on one line separated by " · ". If you cannot find the recipe, return {"error":"Could not find recipe"}.` }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.filter(i => i.type === "text").map(i => i.text).join("") || "";
+      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      if (parsed.error) { setError("Could not auto-fetch. Please enter ingredients manually."); }
+      else {
+        if (parsed.name && !name) setName(parsed.name);
+        if (parsed.ingredients) setIngredientText(parsed.ingredients.join("\n"));
+        if (parsed.servings) {};
+      }
+    } catch(e) { setError("Auto-fetch failed. Please enter ingredients manually."); }
+    setLoading(false);
+  }
+
+  async function handleAnalyse() {
+    if (!name.trim()||!ingredientText.trim()) { setError("Please enter a recipe name and ingredients."); return; }
+    setError(""); setLoading(true);
+    const ings = ingredientText.split("\n").map(l=>l.trim()).filter(Boolean);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`You are a precise nutrition calculator. Use USDA values. For each ingredient calculate calories and protein based on the exact amount. Sum for totals. Respond ONLY with JSON (no markdown): {"calories":612,"protein":48,"servings":2,"ingredients":[{"name":"chicken","amount":"400g","calories":480,"protein":42}]}. Recipe: "${name}". Ingredients: ${ings.join(", ")}`}]})});
+      const data = await res.json();
+      const text = data.content?.map(i=>i.text||"").join("")||"";
+      const parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
+      setResult({...parsed,name,category,link,ingredients:parsed.ingredients||ings.map(i=>({name:i,amount:""}))});
+      setStep("preview");
+    } catch(e) { setError("Could not analyse recipe. Please try again."); }
+    setLoading(false);
+  }
+
+  function handleSave() {
+    const base = result||{name,category,link,ingredients:ingredientText.split("\n").map(l=>({name:l.trim(),amount:""})).filter(i=>i.name),calories:initial?.calories||0,servings:initial?.servings||1};
+    onSave({id:initial?.id||Date.now(),...base,name:result?.name||name,category:result?.category||category,link,thumbnail:getFinal(),platform:getPlatform(link),protein:result?.protein??initial?.protein??null,remarks});
+    onClose();
+  }
+
+  const iF = e=>e.target.style.borderColor="#378add";
+  const iB = e=>e.target.style.borderColor="#d0d0d0";
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}}>
+      <div style={{background:"#fff",borderRadius:14,border:"1px solid #e0e0e0",padding:"1.75rem",width:"min(540px,92vw)",maxHeight:"90vh",overflowY:"auto",fontFamily:FONT}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.5rem"}}>
+          <h2 style={{margin:0,fontSize:20,fontWeight:600,color:"#1a1a1a",fontFamily:FONT}}>{editing?"Edit recipe":"Add recipe"}</h2>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#888"}}>×</button>
+        </div>
+        {step==="form" && (
+          <div style={{display:"flex",flexDirection:"column",gap:18}}>
+            <div>
+              <label style={LS}>Video / recipe link</label>
+              <div style={{display:"flex",gap:8}}>
+                <input value={link} onChange={e=>setLink(e.target.value)} onFocus={iF} onBlur={iB} placeholder="https://youtube.com/shorts/... or facebook.com/..." style={{...FS,flex:1}} />
+                <button onClick={handleFetchFromLink} disabled={loading} style={{padding:"9px 14px",fontFamily:FONT,fontSize:13,fontWeight:500,background:"#378add",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",whiteSpace:"nowrap",opacity:loading?0.6:1}}>
+                  {loading?"Fetching...":"Auto-fill ✦"}
+                </button>
+              </div>
+              <div style={{fontSize:11,color:"#aaa",fontFamily:FONT,marginTop:4}}>Works best with recipe websites & YouTube. Facebook/Instagram may not work.</div>
+            </div>
+            <div><label style={LS}>Cover image</label><ImagePicker imagePreview={imagePreview} setImagePreview={setImagePreview} setImageBase64={setImageBase64} imageUrl={imageUrl} setImageUrl={setImageUrl} link={link} /></div>
+            <div><label style={LS}>Recipe name</label><input value={name} onChange={e=>setName(e.target.value)} onFocus={iF} onBlur={iB} placeholder="e.g. Creamy mushroom pasta" style={FS} /></div>
+            <div><label style={LS}>Category</label><select value={category} onChange={e=>setCategory(e.target.value)} onFocus={iF} onBlur={iB} style={FS}>{CATEGORIES.filter(c=>c!=="All").map(c=><option key={c}>{c}</option>)}</select></div>
+            <div><label style={LS}>Ingredients <span style={{fontWeight:400,textTransform:"none",fontSize:11,color:"#999"}}>(one per line)</span></label><textarea value={ingredientText} onChange={e=>setIngredientText(e.target.value)} onFocus={iF} onBlur={iB} placeholder={"chicken breast\ngarlic\nsoy sauce\nnoodles"} rows={5} style={{...FS,resize:"vertical",lineHeight:1.6}} /></div>
+            <div><label style={LS}>Remarks <span style={{fontWeight:400,textTransform:"none",fontSize:11,color:"#999"}}>(optional)</span></label><textarea value={remarks} onChange={e=>setRemarks(e.target.value)} onFocus={iF} onBlur={iB} placeholder="e.g. Add less salt, great for meal prep..." rows={3} style={{...FS,resize:"vertical",lineHeight:1.6}} /></div>
+            {error && <p style={{color:"#c0392b",fontSize:13,margin:0,fontFamily:FONT}}>{error}</p>}
+            <div style={{display:"flex",gap:10}}>
+              {editing && <button onClick={handleSave} style={{flex:1,padding:10,fontFamily:FONT,fontSize:14,fontWeight:500,background:"#fff",color:"#1a1a1a",border:"1px solid #d0d0d0",borderRadius:8,cursor:"pointer"}}>Save changes</button>}
+              <button onClick={handleAnalyse} disabled={loading} style={{flex:1,padding:10,fontFamily:FONT,fontSize:14,fontWeight:500,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",opacity:loading?0.6:1}}>{loading?"Analysing...":editing?"Re-analyse calories":"Analyse & estimate calories"}</button>
+            </div>
+          </div>
+        )}
+        {step==="preview" && result && (
+          <div style={{display:"flex",flexDirection:"column",gap:16}}>
+            {getFinal() && <img src={getFinal()} alt="" style={{width:"100%",borderRadius:10,objectFit:"cover",maxHeight:200}} />}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+              {[["Calories",result.calories+" kcal"],["Protein",(result.protein??"—")+"g"],["Servings",result.servings]].map(([label,val])=>(
+                <div key={label} style={{background:"#f7f7f7",borderRadius:10,padding:"12px 16px"}}>
+                  <div style={{fontSize:11,color:"#888",fontFamily:FONT,textTransform:"uppercase",letterSpacing:"0.03em",marginBottom:4}}>{label}</div>
+                  <div style={{fontSize:20,fontWeight:600,color:"#1a1a1a",fontFamily:FONT}}>{val}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{border:"1px solid #ebebeb",borderRadius:8,overflow:"hidden"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,fontFamily:FONT}}>
+                <thead><tr style={{background:"#f7f7f7"}}>{["Ingredient","Amount","kcal","Protein"].map((h,i)=><th key={h} style={{textAlign:i===0?"left":"right",padding:"7px 12px",fontWeight:500,color:"#555",fontSize:11,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+                <tbody>{result.ingredients.map((ing,i)=><tr key={i} style={{borderTop:"1px solid #f0f0f0"}}><td style={{padding:"7px 12px",color:"#1a1a1a"}}>{ing.name}</td><td style={{padding:"7px 12px",color:"#888",textAlign:"right"}}>{ing.amount||"—"}</td><td style={{padding:"7px 12px",color:"#1a1a1a",textAlign:"right"}}>{ing.calories??"—"}</td><td style={{padding:"7px 12px",color:"#1a1a1a",textAlign:"right"}}>{ing.protein!=null?ing.protein+"g":"—"}</td></tr>)}</tbody>
+                <tfoot><tr style={{borderTop:"2px solid #e0e0e0",background:"#f7f7f7"}}><td colSpan={2} style={{padding:"8px 12px",fontWeight:600,color:"#1a1a1a"}}>Total</td><td style={{padding:"8px 12px",fontWeight:600,color:"#1a1a1a",textAlign:"right"}}>{result.calories}</td><td style={{padding:"8px 12px",fontWeight:600,color:"#1a1a1a",textAlign:"right"}}>{result.protein!=null?result.protein+"g":"—"}</td></tr></tfoot>
+              </table>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setStep("form")} style={{flex:1,padding:10,fontFamily:FONT,fontSize:14,background:"#fff",border:"1px solid #d0d0d0",borderRadius:8,cursor:"pointer",color:"#1a1a1a"}}>Back</button>
+              <button onClick={handleSave} style={{flex:1,padding:10,fontFamily:FONT,fontSize:14,fontWeight:500,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}}>Save to vault</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GroceryModal({ recipes, onClose }) {
+  const [selected, setSelected] = useState([]);
+  const [overrides, setOverrides] = useState({});
+  const [movingItem, setMovingItem] = useState(null);
+
+  useEffect(()=>{
+    (async()=>{ try { const r=await window.storage.get("grocery_overrides"); if(r?.value) setOverrides(JSON.parse(r.value)); } catch{} })();
+  },[]);
+
+  async function applyOverride(key,group) {
+    const updated={...overrides,[key]:group};
+    setOverrides(updated); setMovingItem(null);
+    try { await window.storage.set("grocery_overrides",JSON.stringify(updated)); } catch{}
+  }
+
+  const toggle = id=>setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
+  const allIngs = recipes.filter(r=>selected.includes(r.id)).flatMap((r,ri)=>(r.ingredients||[]).map((ing,ii)=>({...ing,_key:ri+"-"+ii})));
+  const grouped={};
+  GROCERY_GROUPS.forEach(g=>grouped[g]=[]);
+  allIngs.forEach(ing=>{ const g=overrides[ing._key]||classifyIngredient(ing.name); grouped[g].push(ing); });
+  const GM={Carbs:{icon:"🌾",color:"#7a4f0d"},Protein:{icon:"🥩",color:"#7a1f1f"},Vegetables:{icon:"🥦",color:"#2a5c1a"},Others:{icon:"🧂",color:"#444"}};
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}}>
+      <div style={{background:"#fff",borderRadius:14,border:"1px solid #e0e0e0",padding:"1.75rem",width:"min(560px,92vw)",maxHeight:"88vh",overflowY:"auto",fontFamily:FONT}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.25rem"}}>
+          <h2 style={{margin:0,fontSize:20,fontWeight:600,color:"#1a1a1a",fontFamily:FONT}}>Grocery planner</h2>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#888"}}>×</button>
+        </div>
+        <div style={{marginBottom:"1.25rem",padding:"14px 16px",background:"#f7f7f7",borderRadius:10}}>
+          <div style={{fontSize:12,fontWeight:500,color:"#555",textTransform:"uppercase",letterSpacing:"0.03em",marginBottom:10,fontFamily:FONT}}>Select recipes to include</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {recipes.map(r=>{const on=selected.includes(r.id);return(<button key={r.id} onClick={()=>toggle(r.id)} style={{fontSize:13,padding:"6px 14px",fontFamily:FONT,background:on?"#1a1a1a":"#fff",color:on?"#fff":"#444",border:`1px solid ${on?"#1a1a1a":"#d0d0d0"}`,borderRadius:20,cursor:"pointer",fontWeight:on?500:400}}>{r.name}</button>);})}
+          </div>
+        </div>
+        {selected.length===0 ? (
+          <div style={{textAlign:"center",padding:"2rem 1rem",color:"#aaa",fontFamily:FONT,fontSize:14}}>Select one or more recipes above to see your grocery list</div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:16}}>
+            {GROCERY_GROUPS.map(group=>grouped[group].length>0&&(
+              <div key={group} style={{padding:"14px 16px",background:"#fafafa",borderRadius:10,border:"1px solid #ebebeb"}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
+                  <span style={{fontSize:16}}>{GM[group].icon}</span>
+                  <span style={{fontSize:14,fontWeight:600,color:GM[group].color,fontFamily:FONT}}>{group}</span>
+                  <span style={{fontSize:11,color:"#aaa",fontFamily:FONT}}>({grouped[group].length} item{grouped[group].length!==1?"s":""})</span>
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {grouped[group].map((ing,i)=>(
+                    <div key={i} style={{display:"inline-block"}}>
+                      {movingItem===ing._key ? (
+                        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                          {GROCERY_GROUPS.filter(g=>g!==group).map(g=><button key={g} onClick={()=>applyOverride(ing._key,g)} style={{fontSize:11,padding:"3px 10px",fontFamily:FONT,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:6,cursor:"pointer"}}>{"→ "+g}</button>)}
+                          <button onClick={()=>setMovingItem(null)} style={{fontSize:11,padding:"3px 8px",fontFamily:FONT,background:"#f2f2f2",color:"#666",border:"1px solid #ddd",borderRadius:6,cursor:"pointer"}}>Cancel</button>
+                        </div>
+                      ) : (
+                        <span onClick={()=>setMovingItem(ing._key)} style={{fontSize:13,background:"#fff",border:"1px solid #e5e5e5",borderRadius:6,padding:"5px 12px",fontFamily:FONT,color:"#333",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5}}>
+                          {ing.name}{ing.amount?" · "+ing.amount:""}<span style={{fontSize:10,color:"#bbb"}}>✎</span>
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function RecipeVault() {
+  const [recipes, setRecipes] = useState([]);
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState(null);
+  const [showGrocery, setShowGrocery] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle");
+
+  useEffect(()=>{
+    (async()=>{
+      try {
+        const res=await window.storage.get("recipes");
+        if (res && res.value) {
+          const saved=JSON.parse(res.value);
+          if (Array.isArray(saved) && saved.length>0) {
+            const savedIds=new Set(saved.map(r=>r.id));
+            const toAdd=PRESETS.filter(p=>!savedIds.has(p.id));
+            const merged=toAdd.length>0?[...saved,...toAdd]:saved;
+            if (toAdd.length>0) await window.storage.set("recipes",JSON.stringify(merged));
+            setRecipes(merged);
+          } else {
+            await window.storage.set("recipes",JSON.stringify(PRESETS));
+            setRecipes(PRESETS);
+          }
+        } else {
+          await window.storage.set("recipes",JSON.stringify(PRESETS));
+          setRecipes(PRESETS);
+        }
+      } catch(e) {
+        setRecipes(PRESETS);
+      }
+    })();
+  },[]);
+
+  async function persist(updated) { try { await window.storage.set("recipes",JSON.stringify(updated)); } catch{} }
+  async function handleManualSave() { setSaveStatus("saving"); await persist(recipes); setSaveStatus("saved"); setTimeout(()=>setSaveStatus("idle"),2500); }
+  const filtered=activeCategory==="All"?recipes:recipes.filter(r=>r.category===activeCategory);
+  function saveRecipe(r) { setRecipes(prev=>{ const u=[r,...prev]; persist(u); return u; }); }
+  function updateRecipe(r) { setRecipes(prev=>{ const u=prev.map(x=>x.id===r.id?r:x); persist(u); return u; }); setEditingRecipe(null); }
+  function deleteRecipe(id) { setRecipes(prev=>{ const u=prev.filter(r=>r.id!==id); persist(u); return u; }); }
+
+  return (
+    <div style={{padding:"1.5rem 1rem",maxWidth:740,margin:"0 auto",fontFamily:FONT}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.5rem",flexWrap:"wrap",gap:10}}>
+        <div>
+          <h1 style={{margin:0,fontSize:24,fontWeight:600,color:"#1a1a1a",fontFamily:FONT}}>Recipe vault</h1>
+          <p style={{margin:"2px 0 0",fontSize:13,color:"#888",fontFamily:FONT}}>{recipes.length} recipe{recipes.length!==1?"s":""} saved</p>
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button onClick={handleManualSave} style={{fontSize:13,padding:"8px 16px",fontFamily:FONT,background:saveStatus==="saved"?"#2a5c1a":"#fff",border:`1px solid ${saveStatus==="saved"?"#2a5c1a":"#d0d0d0"}`,borderRadius:8,cursor:"pointer",color:saveStatus==="saved"?"#fff":"#333",fontWeight:500}}>
+            {saveStatus==="saving"?"Saving...":saveStatus==="saved"?"✓ Saved!":"Save vault"}
+          </button>
+          {recipes.length>0&&<button onClick={()=>setShowGrocery(true)} style={{fontSize:13,padding:"8px 16px",fontFamily:FONT,background:"#fff",border:"1px solid #d0d0d0",borderRadius:8,cursor:"pointer",color:"#333",fontWeight:500}}>Grocery list</button>}
+          <button onClick={()=>setShowAdd(true)} style={{fontSize:13,padding:"8px 16px",fontFamily:FONT,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:500}}>+ Add recipe</button>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:"1.25rem"}}>
+        {CATEGORIES.map(c=>{const on=activeCategory===c;return(<button key={c} onClick={()=>setActiveCategory(c)} style={{fontSize:13,padding:"5px 14px",fontFamily:FONT,background:on?"#1a1a1a":"#f2f2f2",color:on?"#fff":"#555",border:`1px solid ${on?"#1a1a1a":"#e0e0e0"}`,borderRadius:20,cursor:"pointer",fontWeight:on?500:400}}>{c}</button>);})}
+      </div>
+      {filtered.length===0 ? (
+        <div style={{textAlign:"center",padding:"4rem 1rem"}}>
+          <div style={{fontSize:44,marginBottom:12}}>🍳</div>
+          <p style={{fontSize:15,margin:0,fontFamily:FONT,color:"#aaa"}}>No recipes yet. Add your first one!</p>
+        </div>
+      ) : (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
+          {filtered.map(r=>(
+            <div key={r.id} style={{background:"#fff",border:"1px solid #e8e8e8",borderRadius:12,overflow:"hidden"}}>
+              <div style={{position:"relative"}}>
+                {r.thumbnail
+                  ? <img src={r.thumbnail} alt={r.name} onError={e=>{e.target.style.display="none";}} style={{width:"100%",height:140,objectFit:"cover",display:"block"}} />
+                  : <div style={{width:"100%",height:140,background:"#f5f5f5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36}}>🍽</div>
+                }
+                <span style={{position:"absolute",top:8,left:8,fontSize:11,padding:"2px 8px",borderRadius:6,background:PC[r.platform]||"#888",color:"#fff",fontWeight:600,fontFamily:FONT}}>{r.platform}</span>
+                <span style={{position:"absolute",top:8,right:8,fontSize:11,padding:"2px 8px",borderRadius:6,background:"rgba(0,0,0,0.55)",color:"#fff",fontFamily:FONT}}>{r.category}</span>
+              </div>
+              <div style={{padding:"10px 12px 12px"}}>
+                <div style={{fontWeight:600,fontSize:14,marginBottom:3,lineHeight:1.35,color:"#1a1a1a",fontFamily:FONT}}>{r.name}</div>
+                <div style={{fontSize:12,color:"#999",marginBottom:8,fontFamily:FONT}}>{r.calories} kcal{r.protein!=null?" · "+r.protein+"g protein":""} · {r.servings} serving{r.servings!==1?"s":""}</div>
+                {r.remarks&&<div style={{fontSize:12,color:"#777",fontFamily:FONT,marginBottom:8,padding:"6px 8px",background:"#fafafa",borderRadius:6,border:"1px solid #f0f0f0",lineHeight:1.5,fontStyle:"italic"}}>{r.remarks}</div>}
+                <button onClick={()=>setExpandedId(expandedId===r.id?null:r.id)} style={{fontSize:12,padding:"5px 10px",width:"100%",marginBottom:6,fontFamily:FONT,background:"#f7f7f7",border:"1px solid #e8e8e8",borderRadius:7,cursor:"pointer",color:"#444"}}>
+                  {expandedId===r.id?"Hide ingredients":"Show ingredients"}
+                </button>
+                {expandedId===r.id&&(
+                  <div style={{marginBottom:8,display:"flex",flexWrap:"wrap",gap:4}}>
+                    {(r.ingredients||[]).map((ing,i)=><span key={i} style={{fontSize:11,background:"#f5f5f5",borderRadius:5,padding:"2px 8px",border:"1px solid #ebebeb",fontFamily:FONT,color:"#555"}}>{ing.name}</span>)}
+                  </div>
+                )}
+                <div style={{display:"flex",gap:6}}>
+                  {r.link&&<a href={r.link} target="_blank" rel="noreferrer" style={{flex:1,fontSize:12,padding:"5px 0",textAlign:"center",border:"1px solid #e0e0e0",borderRadius:7,textDecoration:"none",color:"#378add",background:"#f7f7f7",display:"block",fontFamily:FONT}}>Watch</a>}
+                  <button onClick={()=>setEditingRecipe(r)} style={{flex:1,fontSize:12,padding:"5px 0",fontFamily:FONT,background:"#f7f7f7",border:"1px solid #e0e0e0",borderRadius:7,cursor:"pointer",color:"#444"}}>Edit</button>
+                  <button onClick={()=>deleteRecipe(r.id)} style={{fontSize:12,padding:"5px 8px",fontFamily:FONT,color:"#c0392b",border:"1px solid #f5c6c6",background:"#fdf2f2",borderRadius:7,cursor:"pointer"}}>Delete</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {showAdd&&<RecipeModal onClose={()=>setShowAdd(false)} onSave={saveRecipe} />}
+      {editingRecipe&&<RecipeModal onClose={()=>setEditingRecipe(null)} onSave={updateRecipe} initial={editingRecipe} />}
+      {showGrocery&&<GroceryModal recipes={recipes} onClose={()=>setShowGrocery(false)} />}
+    </div>
+  );
+}
