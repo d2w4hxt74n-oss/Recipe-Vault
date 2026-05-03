@@ -49,8 +49,27 @@ const PRESETS=[
   {id:1009,name:"Tuscan Shrimp Pasta",category:"Carbs",link:"https://www.facebook.com/reel/654775467684679",platform:"Facebook",thumbnail:null,calories:620,protein:38,servings:2,remarks:"",ingredients:[{name:"pasta",amount:"180g"},{name:"shrimp",amount:"300g"},{name:"heavy cream",amount:"120ml"},{name:"sun-dried tomatoes",amount:"60g"},{name:"fresh spinach",amount:"60g"},{name:"garlic",amount:"4 cloves"},{name:"parmesan cheese",amount:"50g"},{name:"olive oil",amount:"20ml"}]},
 ];
 
-function loadRecipes(){try{const s=localStorage.getItem("recipes");if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length>0){const ids=new Set(a.map(r=>r.id));const toAdd=PRESETS.filter(p=>!ids.has(p.id));return toAdd.length>0?[...a,...toAdd]:a;}}return PRESETS;}catch{return PRESETS;}}
-function saveRecipes(r){try{localStorage.setItem("recipes",JSON.stringify(r));}catch{}}
+function loadRecipes(){
+  try{
+    const s=localStorage.getItem("rv_recipes");
+    if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length>0){const ids=new Set(a.map(r=>r.id));const toAdd=PRESETS.filter(p=>!ids.has(p.id));const merged=toAdd.length>0?[...a,...toAdd]:a;return merged;}}
+  }catch(e){console.error("Load error",e);}
+  return PRESETS;
+}
+function saveRecipes(recipes){
+  try{
+    const s=JSON.stringify(recipes);
+    localStorage.setItem("rv_recipes",s);
+    // verify write
+    const check=localStorage.getItem("rv_recipes");
+    if(check!==s) throw new Error("Write verification failed");
+    return true;
+  }catch(e){
+    console.error("Save error",e);
+    alert("Warning: Could not save to localStorage. Your browser may be in private/incognito mode which blocks saving.");
+    return false;
+  }
+}
 
 function ImagePicker({imagePreview,setImagePreview,setImageBase64,imageUrl,setImageUrl,link}){
   const [dragging,setDragging]=useState(false);
@@ -209,7 +228,7 @@ function App(){
   const [saveStatus,setSaveStatus]=useState("idle");
 
   function persist(u){saveRecipes(u);}
-  function handleManualSave(){setSaveStatus("saving");persist(recipes);setSaveStatus("saved");setTimeout(()=>setSaveStatus("idle"),2500);}
+  function handleManualSave(){setSaveStatus("saving");const ok=persist(recipes);setSaveStatus(ok===false?"error":"saved");setTimeout(()=>setSaveStatus("idle"),2500);}
   function saveRecipe(r){setRecipes(prev=>{const u=[r,...prev];persist(u);return u;});}
   function updateRecipe(r){setRecipes(prev=>{const u=prev.map(x=>x.id===r.id?r:x);persist(u);return u;});setEditingRecipe(null);}
   function deleteRecipe(id){if(!window.confirm("Delete this recipe?"))return;setRecipes(prev=>{const u=prev.filter(r=>r.id!==id);persist(u);return u;});}
@@ -223,8 +242,8 @@ function App(){
           <p style={{margin:"2px 0 0",fontSize:13,color:"#888"}}>{recipes.length} recipe{recipes.length!==1?"s":""} saved</p>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={handleManualSave} style={{fontSize:13,padding:"8px 16px",background:saveStatus==="saved"?"#2a5c1a":"#fff",border:`1px solid ${saveStatus==="saved"?"#2a5c1a":"#d0d0d0"}`,borderRadius:8,color:saveStatus==="saved"?"#fff":"#333",fontWeight:500}}>
-            {saveStatus==="saving"?"Saving...":saveStatus==="saved"?"✓ Saved!":"💾 Save vault"}
+          <button onClick={handleManualSave} style={{fontSize:13,padding:"8px 16px",background:saveStatus==="saved"?"#2a5c1a":saveStatus==="error"?"#c0392b":"#fff",border:`1px solid ${saveStatus==="saved"?"#2a5c1a":saveStatus==="error"?"#c0392b":"#d0d0d0"}`,borderRadius:8,color:saveStatus==="saved"||saveStatus==="error"?"#fff":"#333",fontWeight:500}}>
+            {saveStatus==="saving"?"Saving...":saveStatus==="saved"?"✓ Saved!":saveStatus==="error"?"✗ Save failed":"💾 Save vault"}
           </button>
           {recipes.length>0&&<button onClick={()=>setShowGrocery(true)} style={{fontSize:13,padding:"8px 16px",background:"#fff",border:"1px solid #d0d0d0",borderRadius:8,color:"#333",fontWeight:500}}>🛒 Grocery list</button>}
           <button onClick={()=>setShowAdd(true)} style={{fontSize:13,padding:"8px 16px",background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontWeight:500}}>+ Add recipe</button>
